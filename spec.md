@@ -94,8 +94,8 @@ The components of in-db band value is shown in the following table:
 | Field | Type | Description |
 |-------|------|-------------|
 | `pixel_type` | `enum` | The type of pixel values |
-| `no_data_value` | `binary` | The value of no-data cells |
-| `data` | `binary` | The value of cells |
+| `no_data_value` | `pixel_value_type` | The value of no-data cells |
+| `data` | `array<pixel_value_type>` | The value of cells |
 
 The `pixel_type` field is an enumeration that specifies the type of pixel values. The pixel types are defined as follows. `pixel_type` is stored as an integer in data files.
 
@@ -109,8 +109,6 @@ The `pixel_type` field is an enumeration that specifies the type of pixel values
 | `PT_32BUI` | Unsigned 32-bit integer |
 | `PT_32BF` | 32-bit floating point |
 | `PT_64BF` | 64-bit floating point |
-
-The `no_data_value` field is a binary value that represents the value of no-data cells. The `data` field is a binary value that represents the values of all cells in the raster. The values of cells are stored in row-major order. The size of `data` field is `width * height * pixel_size`, where `pixel_size` is the size of a pixel value in bytes. The size of `no_data_value` field is `pixel_size` if NO DATA value is present in the raster, otherwise it is 0.
 
 The components of out-db band value is shown in the following table:
 
@@ -269,7 +267,7 @@ Raster values are stored in parquet as a group type with the following fields:
 | `width` | *required* | `INT32` |  | The width of the raster in pixels |
 | `height` | *required* | `INT32` |  | The height of the raster in pixels |
 | `num_bands` | *required* | `INT32` |  | The number of bands in the raster |
-| `crs_wkt` | *optional* | `BINARY` | `UTF8` | The coordinate reference system of the raster |
+| `crs_wkt` | *optional* | `BINARY` | `UTF8` | The [Well-known Text (WKT)](https://www.ogc.org/standard/wkt-crs/) representation of coordinate reference system of the raster |
 | `geo_reference` | *required* | `group`  | | The geo-referencing information of the raster |
 | `band_1` | *optional* | `group` | | The first band of the raster |
 | `band_2` | *optional* | `group` | | The second band of the raster |
@@ -297,9 +295,38 @@ The group type of each band is defined as follows:
 | `pixel_type` | *required* | `INT32` |  | The type of pixel values |
 | `no_data` | *optional* | `BINARY` |  | The NODATA value |
 | `data` | *optional* | `BINARY` |  | The value of cells |
-| `out_db_band_no` | *optional* | `INT32` |  | The 0-based band number of out-db raster |
-| `out_db_url` | *optional* | `BINARY` | `UTF8` | The URI  |
-| `out_db_opts` | *optional* | `BINARY` | `UTF8` | The URI  |
+| `out_db_band_no` | *optional* | `INT32` |  | The 0-based band number of out-db raster file |
+| `out_db_url` | *optional* | `BINARY` | `UTF8` | The URI of the out-db raster file  |
+
+The `pixel_type` field is an enumeration that specifies the type of pixel values. The pixel types are defined as follows.
+
+| Pixel type | Value | Description |
+|------------|-------|-------------|
+| `PT_8BSI` | 3 |Signed 8-bit integer |
+| `PT_8BUI` | 4 |Unsigned 8-bit integer |
+| `PT_16BSI` | 5 |Signed 16-bit integer |
+| `PT_16BUI` | 6 |Unsigned 16-bit integer |
+| `PT_32BSI` | 7 |Signed 32-bit integer |
+| `PT_32BUI` | 8 |Unsigned 32-bit integer |
+| `PT_32BF` | 10 |32-bit floating point |
+| `PT_64BF` | 11 |64-bit floating point |
+
+The pixel data were serialized using the little-endian bit pattern of values. The number of bytes for each pixel is determined by the value of `pixel_type`. For `PT_32BF` and `PT_64BF` pixel values, the binary representation of pixel values are IEEE 754 compliant bit representation of the float or double values.
+
+The `no_data` field is a binary value that represents the value of no-data cells. If the band does not have NO DATA value, then the `no_data` field should be null.
+
+In-db and out-db bands share the same group type for band values. Here is the rule for determining whether a band is in-db or out-db:
+
+* If `data` is non-null, then the band is in-db.
+* Otherwise, the band is out-db. `out_db_band_no` and `out_db_url` must be non-null in this case.
+
+**In-db band**
+
+The `data` field is a binary value that represents the values of all cells in the band. The values of cells are stored in row-major order. The size of `data` field is `width * height * pixel_size`, where `pixel_size` is the size of a pixel value in bytes.
+
+**Out-db band**
+
+The `out_db_band_no` field corresponds to the `band_number` field in raster data model, and the `out_db_url` field corresponds to the `uri` field in raster data model.
 
 ## Single spatial value serialization
 
