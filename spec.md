@@ -37,6 +37,8 @@ Havasu spec defines the following primitive spatial data types:
 | **`geometry`**     | geometry shape            | Conforming to the [OGC Simple Features for SQL specification](https://www.ogc.org/standard/sfs/) |
 | **`raster`**       | raster as matrices of pixels with geo-referencing metadata | The data model of rasters were introduced in section [Raster data model](#raster-data-model) |
 
+`geometry` fields in Havasu data files can have various physical types and encodings. The physical type and encoding of a `geometry` field is defined by the `havasu.geometry-encoding` property in the JSON representation of the field. Please refer to [JSON serialization](#json-serialization) for the JSON representation of Havasu schemas.
+
 ### Data models
 
 #### Geometry data model
@@ -241,12 +243,63 @@ For example, the following JSON schema defines a `struct` type with a raster fie
 
 ### Parquet Data Type Mappings
 
+Havasu specification defines how to represent spatial types in Parquet files. This section describes the Parquet data type mappings for spatial types.
+
 #### Geometry
 
+Geometry values are stored in parquet according to the encoding property of geometry field. The following table shows the Parquet data type mappings for geometry values:
+
+| Encoding | Parquet physical type | Logical type | Description |
+|----------|-----------------------|--------------|-------------|
+| `ewkb` | `BINARY` | | Extended Well-known binary (EWKB) |
+| `wkb` | `BINARY` | | Well-known binary (WKB) |
+| `wkt` | `BINARY` | `UTF8` | Well-known text (WKT) |
+| `geojson` | `BINARY` | `UTF8` | [GeoJSON (RFC 7946)](https://datatracker.ietf.org/doc/html/rfc7946) |
+
+Extended Well-known binary (EWKB) does not have a formal specification. It is a superset of WKB ([OGC SFA specification](https://www.ogc.org/standard/sfa/) 1.2.1) that supports including the SRID value. Havasu specification requires that the EWKB values stored in Parquet files should be in the format defined hereby.
+
+TODO: Write EWKB spec
 
 #### Raster
 
+Raster values are stored in parquet as a group type with the following fields:
 
+| Field | Required or optional |Parquet physical type |  Logical type | Description |
+|-------|----------------------|----------------------|---------------|-------------|
+| `width` | *required* | `INT32` |  | The width of the raster in pixels |
+| `height` | *required* | `INT32` |  | The height of the raster in pixels |
+| `num_bands` | *required* | `INT32` |  | The number of bands in the raster |
+| `crs_wkt` | *optional* | `BINARY` | `UTF8` | The coordinate reference system of the raster |
+| `geo_reference` | *required* | `group`  | | The geo-referencing information of the raster |
+| `band_1` | *optional* | `group` | | The first band of the raster |
+| `band_2` | *optional* | `group` | | The second band of the raster |
+| `band_3` | *optional* | `group` | | The third band of the raster |
+| `band_4` | *optional* | `group` | | The fourth band of the raster |
+| `bands` | *optional* | `repeated group` | | The remaining bands of the raster |
+
+The group type of `geo_reference` field is defined as follows:
+
+| Field | Required or optional |Parquet physical type |  Logical type | Description |
+|-------|----------------------|----------------------|---------------|-------------|
+| `scale_x` | *required* | `DOUBLE` |  | The scale factor of the raster in X direction |
+| `scale_y` | *required* | `DOUBLE` |  | The scale factor of the raster in Y direction |
+| `skew_x` | *required* | `DOUBLE` |  | The skew factor of the raster in X direction |
+| `skew_y` | *required* | `DOUBLE` |  | The skew factor of the raster in Y direction |
+| `upperleft_x` | *required* | `DOUBLE` |  | The X coordinate of the upper left corner of the raster |
+| `upperleft_y` | *required* | `DOUBLE` |  | The Y coordinate of the upper left corner of the raster |
+
+Bands of rasters are stored in the `band_1`, `band_2`, `band_3`, `band_4` and `bands` fields. If a raster has less than 4 bands, then the extra `band_N` fields and the `bands` field should be null. If a raster has more than 4 bands, then `band_1` to `band_4` fields should be non-null and stores the band values of the first 4 bands, and the remaining bands should be stored in the `bands` field.
+
+The group type of each band is defined as follows:
+
+| Field | Required or optional |Parquet physical type |  Logical type | Description |
+|-------|----------------------|----------------------|---------------|-------------|
+| `pixel_type` | *required* | `INT32` |  | The type of pixel values |
+| `no_data` | *optional* | `BINARY` |  | The NODATA value |
+| `data` | *optional* | `BINARY` |  | The value of cells |
+| `out_db_band_no` | *optional* | `INT32` |  | The 0-based band number of out-db raster |
+| `out_db_url` | *optional* | `BINARY` | `UTF8` | The URI  |
+| `out_db_opts` | *optional* | `BINARY` | `UTF8` | The URI  |
 
 ## Single spatial value serialization
 
