@@ -280,6 +280,8 @@ The `byteOrder` and `wkbValue` portion is identical with the WKB specification. 
 
 The `SRID` value is a 32-bit integer that identifies the coordinate system that the geometry shape is using. It is encoded in the byte order specified by `byteOrder`.
 
+When geometry column is at the root of the schema, and the geometry encoding is one of `wkb` and `ewkb`, the application can optionally write the GeoParquet metadata to the Parquet files. The GeoParquet metadata is defined by [GeoParquet specification](https://github.com/opengeospatial/geoparquet/blob/v1.0.0/format-specs/geoparquet.md). Havasu data files written in this way are compatible with GeoParquet specification and can be directly consumed by [GeoParquet readers](https://geoparquet.org/#implementations).
+
 #### Raster
 
 The parquet data type for raster values is determined by the encoding property `havasu.raster-encoding` of raster field. The only version of raster encoding defined by Havasu specification is `v1`. Havasu spec may define new parquet data type for raster values in the future.
