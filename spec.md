@@ -8,6 +8,10 @@ Havasu spec extends both version 1 and version 2 of Iceberg spec. This spec is n
 
 Havasu spec only defines data type mappings for Parquet. It does not define data type mappings for other formats such as Avro or ORC. We assume that the data files in Havasu tables are always stored in Parquet format.
 
+## Version
+
+This is version 0.1.0 of the Havasu specification. The version of Havasu specification is stored in the table metadata of Havasu tables. Please refer to [Table Metadata](#table-metadata) for more details.
+
 ## Overview
 
 Havasu extends Iceberg spec in the following ways:
@@ -130,6 +134,16 @@ The format of raster file is implementation dependent. For example, the raster f
 
 Havasu specification defines how to stores raster values in parquet data files. The definition of parquet data type for raster is almost identical to the raster data model specified here. Please refer to [Parquet data type mappings](#parquet-data-type-mappings) for the encoding of raster values in Parquet files.
 
+### Table Metadata
+
+Havasu extends the table metadata by adding the following fields:
+
+| v1 | v2 | Field | Type | Description |
+|----|----|-------|------|-------------|
+| *optional* | *optional* | `havasu.format-version` | `string` | The version of Havasu specification that the table conforms to |
+
+If `havasu.format-version` is not present in the table metadata, then the table conforms to Havasu version 0.1.0.
+
 ### Manifests
 
 Havasu spec extends the Iceberg manifest files to support spatial statistics. This section describe the changes to Iceberg manifest files.
@@ -245,7 +259,7 @@ Havasu specification defines how to represent spatial types in Parquet files. Th
 
 #### Geometry
 
-Geometry values are stored in parquet according to the encoding property of geometry field. The following table shows the Parquet data type mappings for geometry values:
+Geometry values are stored in parquet according to the encoding property `havasu.geometry-encoding` of geometry field. The following table shows the Parquet data type mappings for geometry values:
 
 | Encoding | Parquet physical type | Logical type | Description |
 |----------|-----------------------|--------------|-------------|
@@ -256,9 +270,19 @@ Geometry values are stored in parquet according to the encoding property of geom
 
 Extended Well-known binary (EWKB) does not have a formal specification. It is a superset of WKB ([OGC SFA specification](https://www.ogc.org/standard/sfa/) 1.2.1) that supports including the SRID value. Havasu specification requires that the EWKB values stored in Parquet files should be in the format defined hereby.
 
-TODO: Write EWKB spec
+The binary format of EWKB is as follows:
+
+```
+[byteOrder] [wkbType] [SRID] [wkbValue]
+```
+
+The `byteOrder` and `wkbValue` portion is identical with the WKB specification. The `wkbType` is extended to support including an optional `SRID` value. If `wkbType & 0x20000000` is non-zero, then the `SRID` portion is present, otherwise the `SRID` portion is not present and the EWKB is binary sequence is also in WKB.
+
+The `SRID` value is a 32-bit integer that identifies the coordinate system that the geometry shape is using. It is encoded in the byte order specified by `byteOrder`.
 
 #### Raster
+
+The parquet data type for raster values is determined by the encoding property `havasu.raster-encoding` of raster field. The only version of raster encoding defined by Havasu specification is `v1`. Havasu spec may define new parquet data type for raster values in the future.
 
 Raster values are stored in parquet as a group type with the following fields:
 
@@ -286,7 +310,9 @@ The group type of `geo_reference` field is defined as follows:
 | `upperleft_x` | *required* | `DOUBLE` |  | The X coordinate of the upper left corner of the raster |
 | `upperleft_y` | *required* | `DOUBLE` |  | The Y coordinate of the upper left corner of the raster |
 
-Bands of rasters are stored in the `band_1`, `band_2`, `band_3`, `band_4` and `bands` fields. If a raster has less than 4 bands, then the extra `band_N` fields and the `bands` field should be null. If a raster has more than 4 bands, then `band_1` to `band_4` fields should be non-null and stores the band values of the first 4 bands, and the remaining bands should be stored in the `bands` field.
+Bands of rasters are stored in the `band_1`, `band_2`, `band_3`, `band_4` and `bands` fields. If a raster has less than 4 bands, then the extra `band_N` fields and the `bands` field should be null. If a raster has more than 4 bands, then `band_1` to `band_4` fields should be non-null and stores the band values of the first 4 bands, and the remaining bands should be stored in the `bands` field. The purpose of `band_1` to `band_4` fields is to allow applications to access one particular band of a raster without reading all the bands, it only works when the band being accessed is one of the first 4 bands.
+
+If the application only accesses the metadata of the raster, such as `ST_Metadata(rast)` or `ST_GeoReference(rast)`, then the application does not need to read the `band_N` fields as well as the `bands` field. Applying this projection push-down optimization to Havasu tables can significantly improve the performance of metadata-only queries for raster fields.
 
 The group type of each band is defined as follows:
 
